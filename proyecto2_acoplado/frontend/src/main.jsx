@@ -4,7 +4,6 @@ import './style.css'
 
 const BASE = 'http://localhost:3000/api'
 
-// funcion para hacer fetch al backend, la reutilizo en todos lados
 async function llamar(ruta, opciones = {}) {
   const res = await fetch(BASE + ruta, {
     credentials: 'include',
@@ -21,7 +20,6 @@ function App() {
   const [pagina, setPagina] = useState('productos')
   const [errorLogin, setErrorLogin] = useState('')
 
-  // revisar si ya hay sesion activa
   useEffect(() => {
     llamar('/auth/me')
       .then(u => setUsuario(u))
@@ -104,15 +102,13 @@ function App() {
 function Productos() {
   const [lista, setLista] = useState([])
   const [mensaje, setMensaje] = useState('')
-  const [editando, setEditando] = useState(null) // guarda el producto que se esta editando
+  const [editando, setEditando] = useState(null)
 
   const [form, setForm] = useState({
     nombre: '', descripcion: '', precio: '', stock: '', id_categoria: '', id_proveedor: ''
   })
 
-  useEffect(() => {
-    cargar()
-  }, [])
+  useEffect(() => { cargar() }, [])
 
   function cargar() {
     llamar('/productos')
@@ -145,10 +141,6 @@ function Productos() {
     } catch (err) {
       setMensaje('Error: ' + err.message)
     }
-  }
-
-  function empezarEditar(p) {
-    setEditando(p)
   }
 
   async function guardarEdicion() {
@@ -190,7 +182,6 @@ function Productos() {
     <div className="seccion">
       <h2>Productos</h2>
 
-      {/* modal de edicion */}
       {editando && (
         <div className="modal-fondo">
           <div className="modal">
@@ -278,7 +269,7 @@ function Productos() {
                   <td>{p.stock}</td>
                   <td>{p.activo ? 'Sí' : 'No'}</td>
                   <td>
-                    <button onClick={() => empezarEditar(p)} className="btn-edit">Editar</button>
+                    <button onClick={() => setEditando(p)} className="btn-edit">Editar</button>
                     <button onClick={() => eliminar(p.id_producto)} className="btn-del">Eliminar</button>
                   </td>
                 </tr>
@@ -299,9 +290,7 @@ function Clientes() {
 
   const [form, setForm] = useState({ nombre: '', telefono: '', correo: '', direccion: '' })
 
-  useEffect(() => {
-    cargar()
-  }, [])
+  useEffect(() => { cargar() }, [])
 
   function cargar() {
     llamar('/clientes')
@@ -459,9 +448,7 @@ function Ventas({ usuario }) {
   const [idCliente, setIdCliente] = useState('')
   const [items, setItems] = useState([{ id_producto: '', cantidad: '' }])
 
-  useEffect(() => {
-    cargar()
-  }, [])
+  useEffect(() => { cargar() }, [])
 
   function cargar() {
     llamar('/ventas')
@@ -490,7 +477,7 @@ function Ventas({ usuario }) {
         method: 'POST',
         body: JSON.stringify({
           id_cliente: idCliente,
-          id_empleado: usuario.id_usuario, // uso el id del usuario logueado
+          id_empleado: usuario.id_empleado, // id del empleado, no del usuario
           items: items
         })
       })
@@ -600,7 +587,6 @@ function Reportes() {
       .catch(e => setMensaje(e.message))
   }
 
-  // mostrar columnas dinamicamente segun lo que venga
   function renderTabla() {
     if (datos.length === 0) return <p>Sin datos para mostrar.</p>
     const cols = Object.keys(datos[0])

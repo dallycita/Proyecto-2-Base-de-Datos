@@ -1,0 +1,21 @@
+# Variables de entorno
+.env
+
+# Dependencias Node
+node_modules/
+*/node_modules/
+
+# Logs
+*.log
+npm-debug.log*
+
+# Docker volumes
+postgres_data/
+
+# Build de Vite
+dist/
+*/dist/
+
+# OS
+.DS_Store
+Thumbs.db
