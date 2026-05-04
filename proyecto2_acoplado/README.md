@@ -13,7 +13,7 @@ Aplicación web para gestionar inventario y ventas de una tienda. Incluye fronte
 
 ```bash
 git clone https://github.com/dallycita/Proyecto-2-Base-de-Datos.git
-cd proyecto2_acoplado
+cd Proyecto-2-Base-de-Datos\proyecto2_acoplado
 ```
 
 2. Copiar las variables de entorno:
