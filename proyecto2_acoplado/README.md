@@ -1,78 +1,104 @@
 # Proyecto 2 - Bases de Datos 1
 
-Aplicación web para gestionar inventario y ventas de una tienda. Incluye frontend, backend, base de datos PostgreSQL y Docker.
+Aplicación web para gestionar inventario y ventas de una tienda. Incluye frontend (React + Vite), backend (Node.js + Express) y base de datos PostgreSQL, todo desplegado con Docker.
 
 ## Requisitos
 
-- Docker Desktop instalado
+- Docker Desktop instalado y corriendo
 - Docker Compose
 
-## Cómo levantar el proyecto
+## Levantar el proyecto
 
-1. Copiar variables de entorno:
+1. Clonar el repositorio:
+
+```bash
+git clone https://github.com/dallycita/Proyecto-2-Base-de-Datos.git
+cd proyecto2_acoplado
+```
+
+2. Copiar las variables de entorno:
 
 ```bash
 cp .env.example .env
 ```
 
-2. Levantar todo el proyecto:
+3. Levantar todo con un solo comando:
 
 ```bash
 docker compose up --build
 ```
 
-3. Abrir la aplicación:
+4. Abrir en el navegador:
 
-```txt
-Frontend: http://localhost:5173
-Backend: http://localhost:3000
+```
+Frontend:  http://localhost:5173
+Backend:   http://localhost:3000
 ```
 
-## Credenciales obligatorias de base de datos
+## Credenciales de base de datos
 
-```txt
-Usuario: proy2
-Contraseña: secret
+```
+Usuario:       proy2
+Contraseña:    secret
 Base de datos: tienda_proyecto2
 ```
 
-## Usuario de prueba para login
+## Usuario de prueba
 
-```txt
-usuario: usuario01
-contraseña: secret
+```
+Usuario:    usuario01
+Contraseña: secret
 ```
 
-## Funcionalidades incluidas
+## Estructura del proyecto
 
-- Login/logout con sesión.
-- CRUD de productos.
-- CRUD de clientes.
-- Registro de venta con transacción explícita.
-- Manejo de errores visible en la UI.
-- Reportes visibles en la UI.
-- Exportación de reportes a CSV.
-- Uso de SQL explícito en backend, sin ORM.
-- Base de datos inicializada automáticamente con `schema.sql` y `seed.sql`.
-
-## Consultas SQL visibles desde la UI
-
-En la página de reportes se incluyen:
-
-- 3 consultas con JOIN: `join1`, `join2`, `join3`.
-- 2 consultas con subquery: `subquery1`, `subquery2`.
-- Consulta con GROUP BY, HAVING y agregaciones: `group`.
-- Consulta con CTE: `cte`.
-- Consulta basada en VIEW: `view`.
-
-## Transacciones
-
-El endpoint `POST /api/ventas` usa una transacción explícita:
-
-```sql
-BEGIN;
-COMMIT;
-ROLLBACK;
+```
+proyecto2_acoplado/
+├── backend/
+│   ├── src/
+│   │   ├── routes/
+│   │   │   ├── auth.js
+│   │   │   ├── productos.js
+│   │   │   ├── clientes.js
+│   │   │   ├── ventas.js
+│   │   │   └── reportes.js
+│   │   ├── db.js
+│   │   └── index.js
+│   ├── Dockerfile
+│   └── package.json
+├── frontend/
+│   ├── src/
+│   │   ├── main.jsx
+│   │   └── style.css
+│   ├── index.html
+│   ├── vite.config.js
+│   ├── Dockerfile
+│   └── package.json
+├── database/
+│   ├── schema.sql
+│   └── seed.sql
+├── docs/
+│   └── DISENO_BD.md
+├── docker-compose.yml
+├── .env.example
+├── .gitignore
+└── README.md
 ```
 
-Si no hay stock suficiente o ocurre un error, se ejecuta `ROLLBACK`.
+## Funcionalidades
+
+- Login y logout con sesión
+- CRUD completo de productos
+- CRUD completo de clientes
+- Registro de ventas con transacción explícita (BEGIN / COMMIT / ROLLBACK)
+- Historial de ventas
+- 8 reportes SQL visibles en la UI (JOINs, subqueries, GROUP BY, CTE, VIEW)
+- Exportación de reportes a CSV
+- Manejo de errores visible en la interfaz
+
+## Notas técnicas
+
+- Todo el SQL es explícito, sin ORM
+- Las transacciones se manejan manualmente con BEGIN / COMMIT / ROLLBACK
+- La base de datos se inicializa automáticamente con `schema.sql` y `seed.sql` al levantar el contenedor
+- Las credenciales se gestionan mediante `.env`, nunca hardcodeadas
