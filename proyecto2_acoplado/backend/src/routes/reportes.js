@@ -1,45 +1,126 @@
-const router = require('express').Router();
-const pool = require('../db');
+const router = require('express').Router()
+const pool = require('../db')
 
-const consultas = {
-  join1: `SELECT p.nombre AS producto, c.nombre AS categoria, pr.nombre AS proveedor, p.precio, p.stock
-          FROM productos p JOIN categorias c ON p.id_categoria=c.id_categoria
-          JOIN proveedores pr ON p.id_proveedor=pr.id_proveedor ORDER BY p.nombre`,
-  join2: `SELECT v.id_venta, v.fecha, cl.nombre AS cliente, e.nombre AS empleado, v.total
-          FROM ventas v JOIN clientes cl ON v.id_cliente=cl.id_cliente
-          JOIN empleados e ON v.id_empleado=e.id_empleado ORDER BY v.fecha DESC`,
-  join3: `SELECT v.id_venta, p.nombre AS producto, dv.cantidad, dv.subtotal
-          FROM detalle_ventas dv JOIN ventas v ON dv.id_venta=v.id_venta
-          JOIN productos p ON dv.id_producto=p.id_producto ORDER BY v.id_venta`,
-  subquery1: `SELECT nombre, precio FROM productos WHERE precio > (SELECT AVG(precio) FROM productos) ORDER BY precio DESC`,
-  subquery2: `SELECT nombre FROM clientes WHERE id_cliente IN (SELECT id_cliente FROM ventas WHERE total > 250) ORDER BY nombre`,
-  group: `SELECT c.nombre AS categoria, SUM(dv.subtotal) AS total_vendido, COUNT(*) AS lineas
-          FROM detalle_ventas dv JOIN productos p ON dv.id_producto=p.id_producto
-          JOIN categorias c ON p.id_categoria=c.id_categoria
-          GROUP BY c.nombre HAVING SUM(dv.subtotal) > 100 ORDER BY total_vendido DESC`,
-  cte: `WITH ventas_por_cliente AS (
-          SELECT cl.id_cliente, cl.nombre, SUM(v.total) AS total_comprado
-          FROM clientes cl JOIN ventas v ON cl.id_cliente=v.id_cliente
-          GROUP BY cl.id_cliente, cl.nombre
-        ) SELECT * FROM ventas_por_cliente WHERE total_comprado > 150 ORDER BY total_comprado DESC`,
-  view: `SELECT * FROM vista_resumen_ventas ORDER BY fecha DESC`
-};
+// todas las consultas que se muestran en la UI
+// join1: productos con su categoria y proveedor
+const sqlJoin1 = `
+  SELECT p.nombre AS producto, c.nombre AS categoria, pr.nombre AS proveedor, p.precio, p.stock
+  FROM productos p
+  JOIN categorias c ON p.id_categoria = c.id_categoria
+  JOIN proveedores pr ON p.id_proveedor = pr.id_proveedor
+  ORDER BY p.nombre
+`
 
+// join2: ventas con cliente y empleado que la atendio
+const sqlJoin2 = `
+  SELECT v.id_venta, v.fecha, cl.nombre AS cliente, e.nombre AS empleado, v.total
+  FROM ventas v
+  JOIN clientes cl ON v.id_cliente = cl.id_cliente
+  JOIN empleados e ON v.id_empleado = e.id_empleado
+  ORDER BY v.fecha DESC
+`
+
+// join3: detalle de cada venta con el nombre del producto
+const sqlJoin3 = `
+  SELECT v.id_venta, p.nombre AS producto, dv.cantidad, dv.precio_unitario, dv.subtotal
+  FROM detalle_ventas dv
+  JOIN ventas v ON dv.id_venta = v.id_venta
+  JOIN productos p ON dv.id_producto = p.id_producto
+  ORDER BY v.id_venta
+`
+
+// subquery1: productos con precio mayor al promedio
+const sqlSubquery1 = `
+  SELECT nombre, precio
+  FROM productos
+  WHERE precio > (SELECT AVG(precio) FROM productos)
+  ORDER BY precio DESC
+`
+
+// subquery2: clientes que hicieron una compra de mas de Q250
+const sqlSubquery2 = `
+  SELECT nombre
+  FROM clientes
+  WHERE id_cliente IN (SELECT id_cliente FROM ventas WHERE total > 250)
+  ORDER BY nombre
+`
+
+// group: cuanto se vendio por categoria, solo las que superan Q100
+const sqlGroup = `
+  SELECT c.nombre AS categoria, SUM(dv.subtotal) AS total_vendido, COUNT(*) AS cantidad_lineas
+  FROM detalle_ventas dv
+  JOIN productos p ON dv.id_producto = p.id_producto
+  JOIN categorias c ON p.id_categoria = c.id_categoria
+  GROUP BY c.nombre
+  HAVING SUM(dv.subtotal) > 100
+  ORDER BY total_vendido DESC
+`
+
+// cte: clientes con total comprado mayor a Q150
+const sqlCte = `
+  WITH ventas_por_cliente AS (
+    SELECT cl.id_cliente, cl.nombre, SUM(v.total) AS total_comprado
+    FROM clientes cl
+    JOIN ventas v ON cl.id_cliente = v.id_cliente
+    GROUP BY cl.id_cliente, cl.nombre
+  )
+  SELECT * FROM ventas_por_cliente
+  WHERE total_comprado > 150
+  ORDER BY total_comprado DESC
+`
+
+// view: usa la vista creada en el schema
+const sqlView = `
+  SELECT * FROM vista_resumen_ventas ORDER BY fecha DESC
+`
+
+const reportes = {
+  join1: sqlJoin1,
+  join2: sqlJoin2,
+  join3: sqlJoin3,
+  subquery1: sqlSubquery1,
+  subquery2: sqlSubquery2,
+  group: sqlGroup,
+  cte: sqlCte,
+  view: sqlView
+}
+
+// ruta para ejecutar un reporte
 router.get('/:tipo', async (req, res) => {
-  const sql = consultas[req.params.tipo];
-  if (!sql) return res.status(404).json({ error: 'Reporte no existe' });
-  const result = await pool.query(sql);
-  res.json(result.rows);
-});
+  const sql = reportes[req.params.tipo]
+  if (!sql) {
+    return res.status(404).json({ error: 'El reporte ' + req.params.tipo + ' no existe' })
+  }
+  try {
+    const result = await pool.query(sql)
+    res.json(result.rows)
+  } catch (e) {
+    console.log('error en reporte:', e.message)
+    res.status(500).json({ error: 'Error al ejecutar el reporte' })
+  }
+})
 
+// exportar el reporte a CSV
 router.get('/:tipo/csv', async (req, res) => {
-  const sql = consultas[req.params.tipo];
-  if (!sql) return res.status(404).send('Reporte no existe');
-  const result = await pool.query(sql);
-  const cols = result.fields.map(f => f.name);
-  const rows = result.rows.map(r => cols.map(c => JSON.stringify(r[c] ?? '')).join(','));
-  res.header('Content-Type', 'text/csv');
-  res.attachment(`${req.params.tipo}.csv`);
-  res.send([cols.join(','), ...rows].join('\n'));
-});
-module.exports = router;
+  const sql = reportes[req.params.tipo]
+  if (!sql) {
+    return res.status(404).send('Reporte no encontrado')
+  }
+  try {
+    const result = await pool.query(sql)
+    const columnas = result.fields.map(f => f.name)
+    const filas = result.rows.map(fila => {
+      return columnas.map(col => JSON.stringify(fila[col] ?? '')).join(',')
+    })
+
+    const csv = [columnas.join(','), ...filas].join('\n')
+
+    res.header('Content-Type', 'text/csv')
+    res.attachment(req.params.tipo + '.csv')
+    res.send(csv)
+  } catch (e) {
+    res.status(500).send('Error al generar el CSV')
+  }
+})
+
+module.exports = router
