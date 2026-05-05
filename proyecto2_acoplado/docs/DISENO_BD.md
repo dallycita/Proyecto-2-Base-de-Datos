@@ -34,7 +34,7 @@ movimientos_stock(id_movimiento PK, id_producto FK, fecha, tipo, cantidad, motiv
 
 ## Diagrama Entidad-Relación
 
-- Está en el PDF DER.pdf
+- Está en el PDF DER.pdf (se mira mejor si se descarga el .pdf)
 
 ### Cardinalidades
 
