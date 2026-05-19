@@ -1,6 +1,25 @@
 -- Proyecto 2 - Bases de Datos 1
 -- Esquema final acoplado al avance inicial de tienda
 
+
+
+-- Roles de proyecto 3
+
+DO $$ BEGIN
+  IF EXISTS (SELECT FROM pg_roles WHERE rolname = 'rol_admin') THEN DROP ROLE rol_admin; END IF;
+  IF EXISTS (SELECT FROM pg_roles WHERE rolname = 'rol_vendedor') THEN DROP ROLE rol_vendedor; END IF;
+  IF EXISTS (SELECT FROM pg_roles WHERE rolname = 'rol_cajero') THEN DROP ROLE rol_cajero; END IF;
+  IF EXISTS (SELECT FROM pg_roles WHERE rolname = 'rol_bodega') THEN DROP ROLE rol_bodega; END IF;
+  IF EXISTS (SELECT FROM pg_roles WHERE rolname = 'rol_auditor') THEN DROP ROLE rol_auditor; END IF;
+END $$;
+
+CREATE ROLE rol_admin;
+CREATE ROLE rol_vendedor;
+CREATE ROLE rol_cajero;
+CREATE ROLE rol_bodega;
+CREATE ROLE rol_auditor;
+
+----------------------------------------------------------------------------------------------------------
 DROP VIEW IF EXISTS vista_resumen_ventas;
 DROP TABLE IF EXISTS movimientos_stock;
 DROP TABLE IF EXISTS detalle_ventas;
@@ -121,3 +140,118 @@ JOIN clientes c ON v.id_cliente = c.id_cliente
 JOIN empleados e ON v.id_empleado = e.id_empleado
 JOIN detalle_ventas dv ON v.id_venta = dv.id_venta
 GROUP BY v.id_venta, v.fecha, c.nombre, e.nombre, v.total, v.estado;
+
+----------------------------------------------------------------------------
+-- PERMISOS PARA LOS NUEVOS ROLES
+----------------------------------------------------------------------------
+-- rol_admin: acceso total
+GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO rol_admin;
+GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO rol_admin;
+
+-- rol_vendedor: puede ver productos/clientes, registrar ventas
+GRANT SELECT ON productos, categorias, proveedores, clientes TO rol_vendedor;
+GRANT SELECT, INSERT ON ventas, detalle_ventas TO rol_vendedor;
+GRANT SELECT, INSERT ON movimientos_stock TO rol_vendedor;
+GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO rol_vendedor;
+
+-- rol_cajero: solo puede ver ventas y clientes, registrar ventas
+GRANT SELECT ON productos, clientes TO rol_cajero;
+GRANT SELECT, INSERT ON ventas, detalle_ventas TO rol_cajero;
+GRANT USAGE, SELECT ON SEQUENCE ventas_id_venta_seq, detalle_ventas_id_detalle_seq TO rol_cajero;
+
+-- rol_bodega: maneja stock y movimientos
+GRANT SELECT, UPDATE ON productos TO rol_bodega;
+GRANT SELECT, INSERT ON movimientos_stock TO rol_bodega;
+GRANT USAGE, SELECT ON SEQUENCE movimientos_stock_id_movimiento_seq TO rol_bodega;
+
+-- rol_auditor: solo lectura total (para reportes)
+GRANT SELECT ON ALL TABLES IN SCHEMA public TO rol_auditor;
+
+----------------------------------------------------------------------------------------------------
+-- PROCEDIMIENTOS 
+----------------------------------------------------------------------------------------------------
+
+-- SP 1: Registrar una venta completa con transacción y ROLLBACK
+CREATE OR REPLACE PROCEDURE sp_registrar_venta(
+  p_id_cliente INT,
+  p_id_empleado INT,
+  p_items JSON,
+  OUT p_id_venta INT,
+  OUT p_total NUMERIC
+)
+LANGUAGE plpgsql
+AS $$
+DECLARE
+  v_item JSON;
+  v_id_producto INT;
+  v_cantidad INT;
+  v_precio NUMERIC;
+  v_stock INT;
+  v_subtotal NUMERIC;
+BEGIN
+  p_total := 0;
+
+  -- Validar stock de cada producto antes de insertar
+  FOR v_item IN SELECT * FROM json_array_elements(p_items)
+  LOOP
+    v_id_producto := (v_item->>'id_producto')::INT;
+    v_cantidad    := (v_item->>'cantidad')::INT;
+
+    SELECT precio, stock INTO v_precio, v_stock
+    FROM productos WHERE id_producto = v_id_producto;
+
+    IF NOT FOUND THEN
+      RAISE EXCEPTION 'Producto % no existe', v_id_producto;
+    END IF;
+
+    IF v_stock < v_cantidad THEN
+      RAISE EXCEPTION 'Stock insuficiente para producto %', v_id_producto;
+    END IF;
+
+    p_total := p_total + (v_precio * v_cantidad);
+  END LOOP;
+
+  -- Insertar la venta
+  INSERT INTO ventas(id_cliente, id_empleado, total)
+  VALUES (p_id_cliente, p_id_empleado, p_total)
+  RETURNING id_venta INTO p_id_venta;
+
+  -- Insertar detalles y actualizar stock
+  FOR v_item IN SELECT * FROM json_array_elements(p_items)
+  LOOP
+    v_id_producto := (v_item->>'id_producto')::INT;
+    v_cantidad    := (v_item->>'cantidad')::INT;
+
+    SELECT precio INTO v_precio FROM productos WHERE id_producto = v_id_producto;
+    v_subtotal := v_precio * v_cantidad;
+
+    INSERT INTO detalle_ventas(id_venta, id_producto, cantidad, precio_unitario, subtotal)
+    VALUES (p_id_venta, v_id_producto, v_cantidad, v_precio, v_subtotal);
+
+    UPDATE productos SET stock = stock - v_cantidad WHERE id_producto = v_id_producto;
+
+    INSERT INTO movimientos_stock(id_producto, tipo, cantidad, motivo, id_empleado)
+    VALUES (v_id_producto, 'SALIDA', v_cantidad, 'Venta #' || p_id_venta, p_id_empleado);
+  END LOOP;
+
+EXCEPTION
+  WHEN OTHERS THEN
+    RAISE; -- el ROLLBACK lo maneja quien llama al SP
+END;
+$$;
+
+
+-- SP 2: Desactivar un producto con validación
+CREATE OR REPLACE PROCEDURE sp_desactivar_producto(
+  p_id_producto INT
+)
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM productos WHERE id_producto = p_id_producto) THEN
+    RAISE EXCEPTION 'El producto % no existe', p_id_producto;
+  END IF;
+
+  UPDATE productos SET activo = FALSE WHERE id_producto = p_id_producto;
+END;
+$$;
