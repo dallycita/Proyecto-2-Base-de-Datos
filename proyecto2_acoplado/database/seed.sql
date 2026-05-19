@@ -292,3 +292,9 @@ INSERT INTO movimientos_stock (id_producto, tipo, cantidad, motivo, id_empleado)
 (25, 'SALIDA', 1, 'Venta #24', 24),
 (25, 'SALIDA', 2, 'Venta #25', 25),
 (1, 'SALIDA', 1, 'Venta #25', 25);
+
+INSERT INTO empleados (nombre, puesto, telefono, correo, activo) VALUES
+('Prueba Proyecto3', 'Administrador', '5500-0000', 'proy3@tienda.com', TRUE);
+
+INSERT INTO usuarios (id_empleado, username, password_texto, rol, activo) VALUES
+(26, 'proy3', 'secret', 'admin', TRUE);
