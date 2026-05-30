@@ -24,6 +24,7 @@ app.use('/api/auth', require('./routes/auth'))
 app.use('/api/productos', require('./routes/productos'))
 app.use('/api/clientes', require('./routes/clientes'))
 app.use('/api/ventas', require('./routes/ventas'))
+app.use('/api/stock', require('./routes/stock'))
 app.use('/api/reportes', require('./routes/reportes'))
 
 // para verificar que el backend esta corriendo
