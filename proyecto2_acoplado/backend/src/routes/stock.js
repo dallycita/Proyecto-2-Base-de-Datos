@@ -1,8 +1,9 @@
 const router = require('express').Router()
 const pool   = require('../db')
+const { requireAuth, requireRol } = require('../middleware/auth')
 
 // POST /api/stock/ajustar — llama sp_ajustar_stock
-router.post('/ajustar', async (req, res) => {
+router.post('/ajustar', requireRol('admin', 'bodega'), async (req, res) => {
   const client = await pool.connect()
   try {
     const { id_producto, cantidad, tipo, motivo, id_empleado } = req.body
@@ -17,7 +18,6 @@ router.post('/ajustar', async (req, res) => {
     )
     await client.query('COMMIT')
 
-    // Buscar el stock nuevo del producto
     const prod = await pool.query('SELECT stock FROM productos WHERE id_producto = $1', [id_producto])
     res.json({ mensaje: 'Stock ajustado correctamente', stock_nuevo: prod.rows[0]?.stock })
   } catch (e) {
