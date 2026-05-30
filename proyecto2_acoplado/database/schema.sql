@@ -255,3 +255,116 @@ BEGIN
   UPDATE productos SET activo = FALSE WHERE id_producto = p_id_producto;
 END;
 $$;
+
+-- SP 3: Crear cliente con validación
+CREATE OR REPLACE PROCEDURE sp_crear_cliente(
+  p_nombre VARCHAR,
+  p_telefono VARCHAR,
+  p_correo VARCHAR,
+  p_direccion VARCHAR,
+  OUT p_id_cliente INT
+)
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  IF p_nombre IS NULL OR p_correo IS NULL THEN
+    RAISE EXCEPTION 'Nombre y correo son obligatorios';
+  END IF;
+
+  INSERT INTO clientes(nombre, telefono, correo, direccion)
+  VALUES (p_nombre, p_telefono, p_correo, p_direccion)
+  RETURNING id_cliente INTO p_id_cliente;
+
+EXCEPTION
+  WHEN unique_violation THEN
+    RAISE EXCEPTION 'El correo % ya está registrado', p_correo;
+END;
+$$;
+
+-- SP 4: Ajuste de stock con validación y excepción
+CREATE OR REPLACE PROCEDURE sp_ajustar_stock(
+  p_id_producto INT,
+  p_cantidad INT,
+  p_tipo VARCHAR,
+  p_motivo VARCHAR,
+  p_id_empleado INT,
+  OUT p_stock_nuevo INT
+)
+LANGUAGE plpgsql
+AS $$
+DECLARE
+  v_stock_actual INT;
+BEGIN
+  SELECT stock INTO v_stock_actual
+  FROM productos WHERE id_producto = p_id_producto FOR UPDATE;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Producto % no existe', p_id_producto;
+  END IF;
+
+  IF p_tipo = 'SALIDA' AND v_stock_actual < p_cantidad THEN
+    RAISE EXCEPTION 'Stock insuficiente: disponible %, solicitado %', v_stock_actual, p_cantidad;
+  END IF;
+
+  IF p_tipo = 'ENTRADA' THEN
+    UPDATE productos SET stock = stock + p_cantidad WHERE id_producto = p_id_producto
+    RETURNING stock INTO p_stock_nuevo;
+  ELSIF p_tipo = 'SALIDA' THEN
+    UPDATE productos SET stock = stock - p_cantidad WHERE id_producto = p_id_producto
+    RETURNING stock INTO p_stock_nuevo;
+  ELSIF p_tipo = 'AJUSTE' THEN
+    UPDATE productos SET stock = p_cantidad WHERE id_producto = p_id_producto
+    RETURNING stock INTO p_stock_nuevo;
+  ELSE
+    RAISE EXCEPTION 'Tipo de movimiento inválido: %', p_tipo;
+  END IF;
+
+  INSERT INTO movimientos_stock(id_producto, tipo, cantidad, motivo, id_empleado)
+  VALUES (p_id_producto, p_tipo, p_cantidad, p_motivo, p_id_empleado);
+
+EXCEPTION
+  WHEN OTHERS THEN
+    RAISE;
+END;
+$$;
+
+-- Procedimiento: Cancelar venta con ROLLBACK explícito dentro del SP
+CREATE OR REPLACE PROCEDURE sp_cancelar_venta(
+  p_id_venta INT,
+  p_id_empleado INT
+)
+LANGUAGE plpgsql
+AS $$
+DECLARE
+  v_item RECORD;
+  v_estado VARCHAR;
+BEGIN
+  SELECT estado INTO v_estado FROM ventas WHERE id_venta = p_id_venta;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Venta % no existe', p_id_venta;
+  END IF;
+
+  IF v_estado = 'CANCELADA' THEN
+    RAISE EXCEPTION 'La venta % ya está cancelada', p_id_venta;
+  END IF;
+
+  -- Revertir stock de cada producto
+  FOR v_item IN
+    SELECT id_producto, cantidad FROM detalle_ventas WHERE id_venta = p_id_venta
+  LOOP
+    UPDATE productos SET stock = stock + v_item.cantidad
+    WHERE id_producto = v_item.id_producto;
+
+    INSERT INTO movimientos_stock(id_producto, tipo, cantidad, motivo, id_empleado)
+    VALUES (v_item.id_producto, 'ENTRADA', v_item.cantidad,
+            'Cancelación venta #' || p_id_venta, p_id_empleado);
+  END LOOP;
+
+  UPDATE ventas SET estado = 'CANCELADA' WHERE id_venta = p_id_venta;
+
+EXCEPTION
+  WHEN OTHERS THEN
+    RAISE;
+END;
+$$;
