@@ -1,9 +1,9 @@
-const router = require('express').Router()
+const router  = require('express').Router()
 const Cliente = require('../models/Cliente')
 const pool    = require('../db')
+const { requireAuth, requireRol } = require('../middleware/auth')
 
-// GET — ORM
-router.get('/', async (req, res) => {
+router.get('/', requireAuth, async (req, res) => {
   try {
     const lista = await Cliente.findAll({ order: [['id_cliente', 'ASC']] })
     res.json(lista)
@@ -12,19 +12,16 @@ router.get('/', async (req, res) => {
   }
 })
 
-// POST — vía stored procedure sp_crear_cliente
-router.post('/', async (req, res) => {
+router.post('/', requireRol('admin', 'vendedor', 'cajero'), async (req, res) => {
   const { nombre, telefono, correo, direccion } = req.body
   if (!nombre || !correo) {
     return res.status(400).json({ error: 'Nombre y correo son obligatorios' })
   }
   try {
-    // Llamada al SP con parámetros OUT usando pg directamente
-    const result = await pool.query(
+    await pool.query(
       'CALL sp_crear_cliente($1, $2, $3, $4, NULL)',
       [nombre, telefono, correo, direccion]
     )
-    // Devolvemos el cliente recién creado vía ORM
     const nuevo = await Cliente.findOne({ where: { correo }, order: [['id_cliente', 'DESC']] })
     res.status(201).json(nuevo)
   } catch (e) {
@@ -32,8 +29,7 @@ router.post('/', async (req, res) => {
   }
 })
 
-// PUT — ORM
-router.put('/:id', async (req, res) => {
+router.put('/:id', requireRol('admin', 'vendedor', 'cajero'), async (req, res) => {
   const { nombre, telefono, correo, direccion } = req.body
   try {
     const [filas] = await Cliente.update(
@@ -48,8 +44,7 @@ router.put('/:id', async (req, res) => {
   }
 })
 
-// DELETE — pg directo (tiene FK, manejo especial)
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', requireRol('admin'), async (req, res) => {
   try {
     await pool.query('DELETE FROM clientes WHERE id_cliente = $1', [req.params.id])
     res.json({ mensaje: 'Cliente eliminado' })

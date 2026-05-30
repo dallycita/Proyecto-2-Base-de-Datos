@@ -1,8 +1,7 @@
 const router = require('express').Router()
-const pool = require('../db')
+const pool   = require('../db')
+const { requireAuth, requireRol } = require('../middleware/auth')
 
-// todas las consultas que se muestran en la UI
-// join1: productos con su categoria y proveedor
 const sqlJoin1 = `
   SELECT p.nombre AS producto, c.nombre AS categoria, pr.nombre AS proveedor, p.precio, p.stock
   FROM productos p
@@ -11,7 +10,6 @@ const sqlJoin1 = `
   ORDER BY p.nombre
 `
 
-// join2: ventas con cliente y empleado que la atendio
 const sqlJoin2 = `
   SELECT v.id_venta, v.fecha, cl.nombre AS cliente, e.nombre AS empleado, v.total
   FROM ventas v
@@ -20,7 +18,6 @@ const sqlJoin2 = `
   ORDER BY v.fecha DESC
 `
 
-// join3: detalle de cada venta con el nombre del producto
 const sqlJoin3 = `
   SELECT v.id_venta, p.nombre AS producto, dv.cantidad, dv.precio_unitario, dv.subtotal
   FROM detalle_ventas dv
@@ -29,7 +26,6 @@ const sqlJoin3 = `
   ORDER BY v.id_venta
 `
 
-// subquery1: productos con precio mayor al promedio
 const sqlSubquery1 = `
   SELECT nombre, precio
   FROM productos
@@ -37,7 +33,6 @@ const sqlSubquery1 = `
   ORDER BY precio DESC
 `
 
-// subquery2: clientes que hicieron una compra de mas de Q250
 const sqlSubquery2 = `
   SELECT nombre
   FROM clientes
@@ -45,7 +40,6 @@ const sqlSubquery2 = `
   ORDER BY nombre
 `
 
-// group: cuanto se vendio por categoria, solo las que superan Q100
 const sqlGroup = `
   SELECT c.nombre AS categoria, SUM(dv.subtotal) AS total_vendido, COUNT(*) AS cantidad_lineas
   FROM detalle_ventas dv
@@ -56,7 +50,6 @@ const sqlGroup = `
   ORDER BY total_vendido DESC
 `
 
-// cte: clientes con total comprado mayor a Q150
 const sqlCte = `
   WITH ventas_por_cliente AS (
     SELECT cl.id_cliente, cl.nombre, SUM(v.total) AS total_comprado
@@ -69,24 +62,22 @@ const sqlCte = `
   ORDER BY total_comprado DESC
 `
 
-// view: usa la vista creada en el schema
 const sqlView = `
   SELECT * FROM vista_resumen_ventas ORDER BY fecha DESC
 `
 
 const reportes = {
-  join1: sqlJoin1,
-  join2: sqlJoin2,
-  join3: sqlJoin3,
+  join1:     sqlJoin1,
+  join2:     sqlJoin2,
+  join3:     sqlJoin3,
   subquery1: sqlSubquery1,
   subquery2: sqlSubquery2,
-  group: sqlGroup,
-  cte: sqlCte,
-  view: sqlView
+  group:     sqlGroup,
+  cte:       sqlCte,
+  view:      sqlView
 }
 
-// ruta para ejecutar un reporte
-router.get('/:tipo', async (req, res) => {
+router.get('/:tipo', requireRol('admin', 'auditor', 'vendedor'), async (req, res) => {
   const sql = reportes[req.params.tipo]
   if (!sql) {
     return res.status(404).json({ error: 'El reporte ' + req.params.tipo + ' no existe' })
@@ -100,8 +91,7 @@ router.get('/:tipo', async (req, res) => {
   }
 })
 
-// exportar el reporte a CSV
-router.get('/:tipo/csv', async (req, res) => {
+router.get('/:tipo/csv', requireRol('admin', 'auditor', 'vendedor'), async (req, res) => {
   const sql = reportes[req.params.tipo]
   if (!sql) {
     return res.status(404).send('Reporte no encontrado')
@@ -112,9 +102,7 @@ router.get('/:tipo/csv', async (req, res) => {
     const filas = result.rows.map(fila => {
       return columnas.map(col => JSON.stringify(fila[col] ?? '')).join(',')
     })
-
     const csv = [columnas.join(','), ...filas].join('\n')
-
     res.header('Content-Type', 'text/csv')
     res.attachment(req.params.tipo + '.csv')
     res.send(csv)

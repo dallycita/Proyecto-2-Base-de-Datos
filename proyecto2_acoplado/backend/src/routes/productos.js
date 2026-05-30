@@ -1,12 +1,11 @@
-const router = require('express').Router()
-const { Op } = require('sequelize')
+const router    = require('express').Router()
 const Producto  = require('../models/Producto')
 const Categoria = require('../models/Categoria')
 const Proveedor = require('../models/Proveedor')
 const pool      = require('../db')
+const { requireAuth, requireRol } = require('../middleware/auth')
 
-// GET — listar con asociaciones (ORM)
-router.get('/', async (req, res) => {
+router.get('/', requireAuth, async (req, res) => {
   try {
     const lista = await Producto.findAll({
       include: [
@@ -15,7 +14,6 @@ router.get('/', async (req, res) => {
       ],
       order: [['id_producto', 'ASC']]
     })
-    // Aplanar para que el frontend siga recibiendo los campos "categoria" y "proveedor"
     const datos = lista.map(p => ({
       ...p.toJSON(),
       categoria: p.categoria_rel?.nombre,
@@ -27,8 +25,7 @@ router.get('/', async (req, res) => {
   }
 })
 
-// POST — crear (ORM)
-router.post('/', async (req, res) => {
+router.post('/', requireRol('admin', 'vendedor'), async (req, res) => {
   const { nombre, descripcion, precio, stock, id_categoria, id_proveedor } = req.body
   if (!nombre || !precio || !stock) {
     return res.status(400).json({ error: 'Nombre, precio y stock son requeridos' })
@@ -42,8 +39,7 @@ router.post('/', async (req, res) => {
   }
 })
 
-// PUT — editar (ORM)
-router.put('/:id', async (req, res) => {
+router.put('/:id', requireRol('admin', 'vendedor'), async (req, res) => {
   const { nombre, descripcion, precio, stock, id_categoria, id_proveedor, activo } = req.body
   try {
     const [filas] = await Producto.update(
@@ -58,8 +54,7 @@ router.put('/:id', async (req, res) => {
   }
 })
 
-// DELETE — desactivar usando SP (stored procedure invocado desde el backend)
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', requireRol('admin'), async (req, res) => {
   try {
     await pool.query('CALL sp_desactivar_producto($1)', [req.params.id])
     res.json({ mensaje: 'Producto desactivado correctamente' })

@@ -298,3 +298,22 @@ INSERT INTO empleados (nombre, puesto, telefono, correo, activo) VALUES
 
 INSERT INTO usuarios (id_empleado, username, password_texto, rol, activo) VALUES
 (26, 'proy3', 'secret', 'admin', TRUE);
+
+-- Usuarios de prueba para cada rol (Proyecto 3)
+INSERT INTO empleados (nombre, puesto, telefono, correo, activo) VALUES
+('Test Bodega',   'Bodega',      '5500-0001', 'test_bodega@tienda.com',   TRUE),
+('Test Auditor',  'Auditor',     '5500-0002', 'test_auditor@tienda.com',  TRUE),
+('Test Admin P3', 'Administrador','5500-0003','test_admin3@tienda.com',   TRUE),
+('Test Vendedor', 'Vendedor',    '5500-0004', 'test_vendedor@tienda.com', TRUE),
+('Test Cajero',   'Cajero',      '5500-0005', 'test_cajero@tienda.com',   TRUE);
+
+INSERT INTO usuarios (id_empleado, username, password_texto, rol, activo)
+SELECT id_empleado, 'test_bodega',   'secret', 'bodega',   TRUE FROM empleados WHERE correo = 'test_bodega@tienda.com'
+UNION ALL
+SELECT id_empleado, 'test_auditor',  'secret', 'auditor',  TRUE FROM empleados WHERE correo = 'test_auditor@tienda.com'
+UNION ALL
+SELECT id_empleado, 'test_admin3',   'secret', 'admin',    TRUE FROM empleados WHERE correo = 'test_admin3@tienda.com'
+UNION ALL
+SELECT id_empleado, 'test_vendedor', 'secret', 'vendedor', TRUE FROM empleados WHERE correo = 'test_vendedor@tienda.com'
+UNION ALL
+SELECT id_empleado, 'test_cajero',   'secret', 'cajero',   TRUE FROM empleados WHERE correo = 'test_cajero@tienda.com';
